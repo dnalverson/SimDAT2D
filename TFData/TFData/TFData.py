@@ -185,7 +185,7 @@ def create_numpy_array_mask(combined_image, width):
     return mask
 
 #Create a function that takes the combined image and integrates it using the azimuthal integrator and displays the 1D image
-def integrate_image(combined_image, distance, wavelength, resolution = 3000, mask = None):
+def integrate_image(combined_image, distance, wavelength, resolution = 3000, mask = None, show = False):
     """
     This function integrates the combined image using the azimuthal integrator and displays the 1D image.
     
@@ -206,15 +206,16 @@ def integrate_image(combined_image, distance, wavelength, resolution = 3000, mas
     #integrate the combined image using the azimuthal integrator
     q, I = ai.integrate1d(combined_image, resolution, unit = 'q_A^-1', mask = mask)
     
-    #plot the 1D image
-    plt.figure(figsize=(10, 10))
-    plt.plot(q, I)
-    plt.title("1D X-Ray Diffraction Image")
-    plt.show()
+    if show == True:
+        #plot the 1D image
+        plt.figure(figsize=(10, 10))
+        plt.plot(q, I)
+        plt.title("1D X-Ray Diffraction Image")
+        plt.show()
     
     return q, I
 
-def mask_rotation(mask, angle):
+def mask_rotation(mask, angle, show = False):
     """
     This function rotates the create mask by a user specified angle amount, if the angle specified is 1, the result is that the mask is rotated by one degree.
     
@@ -224,11 +225,51 @@ def mask_rotation(mask, angle):
         """
     rotated_mask = ndimage.rotate(mask, angle, reshape = False, mode = 'mirror')
         
-        
-    #display the rotated mask
-    plt.figure(figsize=(10, 10))
-    plt.imshow(rotated_mask, cmap='viridis')
-    plt.title("Rotated Mask")
-    plt.show()
+    
+    if show == True:
+        #display the rotated mask
+        plt.figure(figsize=(10, 10))
+        plt.imshow(rotated_mask, cmap='viridis')
+        plt.title("Rotated Mask")
+        plt.show()
     
     return rotated_mask
+
+def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None):
+    """
+    This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, and rotates the combined image by a user specified angle amount, if the angle specified is 1, the result will be 360 integrations of the combined image, each integration will be rotated by 1 degree.
+    
+    Parameters:
+        combined_image (2D array): The image of the combined spots and calibration.
+        angle_of_rotation (int): The angle of rotation.
+        distance (float): The distance from the detector to the sample.
+        wavelength (float): The wavelength of the x-rays.
+        resolution (int): The resolution of the integration.
+        mask (2D array): The mask to use for the integration.
+    """
+    
+    import pandas as pd 
+    
+    #create a dataframe to store the 1D integrations
+    df = pd.DataFrame()
+    
+    #create a loop that rotates the combined image by the user specified angle amount and integrates the image
+    for i in range(0, 360, angle_of_rotation):
+        #rotate the mask for the combined image
+        rotated_mask = mask_rotation(mask, i, show = False);
+        
+        #integrate the rotated image
+        q, I = integrate_image(combined_image, distance, wavelength, resolution, rotated_mask, show = False);
+        
+        #add the 1D integration to the dataframe
+        df[i] = I
+        
+        #create a waterfall plot of the 1D integrations, where each dataset is moved up on the y axis by a multiple of .5
+    plt.figure(figsize=(10, 10))
+    for j in range(0, 360, angle_of_rotation):
+            plt.plot(q, (df[j]+ j*.01), alpha = .55, c = 'black')
+    plt.xlabel('q A $^(-1)$')
+    plt.ylabel('Intensity')
+    plt.title("Waterfall Plot of Rotated 1D X-Ray Diffraction Images")
+    plt.show()        
+    return df
