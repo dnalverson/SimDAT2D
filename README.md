@@ -1,2 +1,2 @@
 # thinfilm-toy-data-tool
-A tool to creat simulated 2D thin film data
+A tool to create simulated 2D thin film data
