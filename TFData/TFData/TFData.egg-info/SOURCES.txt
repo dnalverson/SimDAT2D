@@ -1,0 +1,5 @@
+setup.py
+TFData.egg-info/PKG-INFO
+TFData.egg-info/SOURCES.txt
+TFData.egg-info/dependency_links.txt
+TFData.egg-info/top_level.txt
