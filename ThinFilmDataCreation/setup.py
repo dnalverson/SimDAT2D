@@ -9,6 +9,6 @@ setup(
     author='Danielle N. Alverson',
     author_email='dalverson@ufl.edu',
     packages=find_packages(),
-    url='https://github.com/dnalverson/thinfilm-toy-data-tool/',
-    install_requirements = ['numpy', 'matplotlib', 'scipy', 'pyFAI', 'pyFAI.gui', 'pyFAI.detectors', 'pyFAI.azimuthalIntegrator']
+    url='https://github.com/dnalverson/thinfilm-toy-data-tool/'
+    #install_requirements = ['numpy', 'matplotlib', 'scipy', 'pyFAI', 'pyFAI.gui', 'pyFAI.detectors', 'pyFAI.azimuthalIntegrator']
 )
