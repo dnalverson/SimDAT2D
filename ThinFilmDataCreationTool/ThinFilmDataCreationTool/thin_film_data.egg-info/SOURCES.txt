@@ -1,0 +1,5 @@
+setup.py
+thin_film_data.egg-info/PKG-INFO
+thin_film_data.egg-info/SOURCES.txt
+thin_film_data.egg-info/dependency_links.txt
+thin_film_data.egg-info/top_level.txt
