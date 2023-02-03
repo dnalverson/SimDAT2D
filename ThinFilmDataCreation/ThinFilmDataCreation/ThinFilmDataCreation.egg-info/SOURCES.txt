@@ -1,5 +1,0 @@
-setup.py
-ThinFilmDataCreation.egg-info/PKG-INFO
-ThinFilmDataCreation.egg-info/SOURCES.txt
-ThinFilmDataCreation.egg-info/dependency_links.txt
-ThinFilmDataCreation.egg-info/top_level.txt
