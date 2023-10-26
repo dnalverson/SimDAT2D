@@ -7,8 +7,9 @@ from pyFAI.gui import jupyter
 import scipy.ndimage as ndimage
 import pyFAI.detectors
 from pyFAI.azimuthalIntegrator import AzimuthalIntegrator
+from PIL import Image
 
-def plot_calibration_image(distance, wavelength, cmap):
+def create_isotropic(distance, wavelength, cmap):
     """
     This function plots a calibration image for a given calibrant, distance, and wavelength.
 
@@ -56,7 +57,7 @@ def plot_calibration_image(distance, wavelength, cmap):
     return img
     
 
-def generate_2D_image(nspots, width, offset, size=4, shape = 'square', cmap = 'viridis'):
+def create_anisotropic(nspots, width, offset, size=4, shape = 'square', cmap = 'viridis'):
     """
     This function generates a 2D image of small spots on a detector image that's 2048x2048 pixels. Each spot is separated by a width and offset and has the highest intensity in the center of the spot and the 
     lowest intensity at the edges of the spot. The spots are 4x4 pixels in size. The function should take the number of spots, the width of the spots, and the offset between spots as parameters.
@@ -162,7 +163,7 @@ def generate_noisemap(combined_image, intensity, cmap = 'viridis'):
     
     return combined_image_with_noise
 
-def create_numpy_array_mask(combined_image, width):
+def create_mask(combined_image, width):
     """
     This function creates a mask for the azimuthal integrator to mask everything but an area of interest.
     
@@ -173,8 +174,8 @@ def create_numpy_array_mask(combined_image, width):
     #create a mask for the azimuthal integrator to mask everything but an area of interest.
     #this area of interest is a line of user specified width that starts at the center of the image and extends to the edge of the image
     #the mask starts at the center and only goes positive in the y direction
-    mask = np.zeros_like(combined_image)
-    mask[1024-width:1024+width, 1024:] = 1
+    mask = np.ones_like(combined_image)
+    mask[1024-width:1024+width, 1024:] = 0
     
     #display the mask
     plt.figure(figsize=(10, 10))
@@ -235,6 +236,26 @@ def mask_rotation(mask, angle, show = False):
     
     return rotated_mask
 
+def image_rotation(image, angle, show = False):
+    """
+    This function rotates the combined image by a user specified angle amount, if the angle specified is 1, the result is that the combined image is rotated by one degree.
+    
+    Parameters:
+        image (2D array): The image of the combined spots and calibration.
+        angle_of_rotation (int): The angle of rotation.
+        """
+    pil_format = Image.fromarray(image)
+    rotated_image = pil_format.rotate(angle)
+    rotated_image = np.array(rotated_image)
+    
+    if show == True:
+        #display the rotated image
+        plt.figure(figsize=(10, 10))
+        plt.imshow(rotated_image, cmap='viridis')
+        plt.title("Rotated Image")
+        plt.show()
+    return rotated_image
+
 def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None):
     """
     This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, and rotates the combined image by a user specified angle amount, if the angle specified is 1, the result will be 360 integrations of the combined image, each integration will be rotated by 1 degree.
@@ -256,10 +277,11 @@ def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength
     #create a loop that rotates the combined image by the user specified angle amount and integrates the image
     for i in range(0, 360, angle_of_rotation):
         #rotate the mask for the combined image
-        rotated_mask = mask_rotation(mask, i, show = False);
+        rotated_image = image_rotation(combined_image, i);
+    
         
         #integrate the rotated image
-        q, I = integrate_image(combined_image, distance, wavelength, resolution, rotated_mask, show = False);
+        q, I = integrate_image(rotated_image, distance, wavelength, resolution, mask, show = False);
         
         #add the 1D integration to the dataframe
         df[i] = I
@@ -272,4 +294,4 @@ def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength
     plt.ylabel('Intensity')
     plt.title("Waterfall Plot of Rotated 1D X-Ray Diffraction Images")
     plt.show()        
-    return df
+    return q, df

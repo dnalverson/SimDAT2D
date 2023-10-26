@@ -1,0 +1,4 @@
+matplotlib
+pyFAI
+scipy
+numpy
