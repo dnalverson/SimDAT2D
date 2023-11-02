@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: SimDat2D
+Version: 0.1.0
+Summary: To create simulated 2D images of calibrant materials on single crystal substrates and integrate them with multiple integration patterns
+Home-page: https://github.com/dnalverson/thinfilm-toy-data-tool/
+Author: Danielle N. Alverson
+Author-email: dalverson@ufl.edu
+
+This package is designed to create simulated 2D images of calibrant materials on different orientations of single crystal substrates and integrate them to get multiple integration patterns. The integration patterns can be used for further analysis to extract and separate the single crystal background and calibrant material of interest.
