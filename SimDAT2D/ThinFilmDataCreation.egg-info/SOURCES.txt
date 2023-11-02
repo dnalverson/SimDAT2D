@@ -1,9 +1,0 @@
-README.md
-setup.py
-ThinFilmDataCreation/ThinFilmDataCreation.py
-ThinFilmDataCreation/__init__.py
-ThinFilmDataCreation.egg-info/PKG-INFO
-ThinFilmDataCreation.egg-info/SOURCES.txt
-ThinFilmDataCreation.egg-info/dependency_links.txt
-ThinFilmDataCreation.egg-info/requires.txt
-ThinFilmDataCreation.egg-info/top_level.txt
