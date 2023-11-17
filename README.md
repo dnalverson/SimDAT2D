@@ -41,4 +41,4 @@ import SimDAT2D as sd
 ```
 ## License
 
-This project is licensed under the [BSD 3-Clause License](LICENSE) - see the [LICENSE](LICENSE.md) file for details.
+This project is licensed under the [BSD 3-Clause License](https://spdx.org/licenses/BSD-3-Clause-Clear.html) - see the [LICENSE](LICENSE.md) file for details.
