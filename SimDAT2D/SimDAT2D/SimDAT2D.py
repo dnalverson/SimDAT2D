@@ -1,4 +1,10 @@
-# Function form of the above code
+# Copyright (c) 2023, Danielle N. Alverson
+# All rights reserved.
+#
+# This software is licensed under the BSD 3-Clause License.
+# See the LICENSE file in the project root for details.
+
+
 import pyFAI
 import pyFAI.calibrant
 import numpy as np
