@@ -295,3 +295,101 @@ def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength
     plt.title("Waterfall Plot of Rotated 1D X-Ray Diffraction Images")
     plt.show()        
     return q, df
+
+    # Final Subtraction Program
+# Date Created: 11/2/2023
+# Author:Celia Mercier, Danielle Alverson
+
+import csv
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def parse_file(file_path):
+    """This serves as a helper function to the main subtraction function by "cleaning" up the data
+    and removing the explanations at the start to get the numbers alone"""
+    data = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            # Removes lines starting with '#'
+            if not line.startswith('#'):
+                values = line.strip().split()
+                # Converts string in .txt to float
+                x = float(values[0])
+                y = float(values[1])
+                
+
+                data[x] = y
+    return data
+
+
+def subtract_and_store(total_signalfile_path, substrate_filepath):
+    """This takes in text files containing coordinates of the integrations and subtracts the substrate from 
+    the total signal. While subtracting it is keeping track of the smallest distance in between two points and
+     and when it finishes parsing this process, it goes through the dictionary containg the subtracted values and 
+      subracts the minumum value found, bring it as close to zero as possible """
+    # Gets data from inputs
+    data1 = parse_file(total_signalfile_path)
+    data2 = parse_file(substrate_filepath)
+    # Arbitrarily large number
+    min_val = 1000
+
+    result_dict = {}
+    # Goes through x,y coordinates for total signal and finds matching x in substrate
+    for x, y1 in data1.items():
+        if x in data2:
+            y2 = data2[x]
+            #Subtracts y value of subtrate from total signal
+            result_value = y1 - y2
+            result_dict[x] = result_value
+
+            if result_value < min_val and result_value != 0:
+                min_val = result_value
+                
+    return result_dict
+
+def save_data(path, result_dict):
+    """A function to save the data as a csv by taking in the output of subtract_and_store"""
+    final_sub_path = path
+    # Opens csv file to place values in
+    with open(final_sub_path, mode = 'w', newline = '' ) as file:
+        # Space as delimiter
+        writer = csv.writer(file, delimiter = ' ')
+        for x in result_dict:
+            # Subtracts by smallest space
+            if result_dict[x] >= min_val:
+                result_dict[x] = result_dict[x] - min_val
+                writer.writerow([x, result_dict[x]])
+
+
+
+result = subtract_and_store("C:\\Users\\chmer\\Final_fused_Si_E.txt", "C:\\Users\\chmer\\Final_DyIg_60k_Fused_Si.txt")
+
+# Separate coordinates into lists
+keys = list(result.keys())
+values = list(result.values())
+
+# Parse data from the input files
+data1 = parse_file("C:\\Users\\chmer\\Final_fused_Si_E.txt")
+data2 = parse_file("C:\\Users\\chmer\\Final_DyIg_60k_Fused_Si.txt")
+
+keys_data1 = list(data1.keys())
+values_data1 = list(data1.values())
+
+keys_data2 = list(data2.keys())
+values_data2 = list(data2.values())
+
+plt.figure()
+
+# Plotting data from the first file
+plt.plot(keys_data1, values_data1, label='Total Signal', color='blue')
+
+# Plotting data from the second file
+plt.plot(keys_data2, values_data2, label='Substrate', color='green')
+
+# Plotting the subtraction values
+plt.plot(keys, values, label='Subtraction', color='magenta')
+
+plt.xlabel("q(A^-1)")
+plt.ylabel("Intensity")
+plt.legend()
+plt.show()
