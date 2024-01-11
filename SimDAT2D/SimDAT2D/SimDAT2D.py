@@ -365,37 +365,26 @@ def save_data(path, result_dict):
             if result_dict[x] >= min_val:
                 result_dict[x] = result_dict[x] - min_val
                 writer.writerow([x, result_dict[x]])
-
-
-
-result = subtract_and_store("C:\\Users\\chmer\\Final_fused_Si_E.txt", "C:\\Users\\chmer\\Final_DyIg_60k_Fused_Si.txt")
-
-# Separate coordinates into lists
-keys = list(result.keys())
-values = list(result.values())
-
-# Parse data from the input files
-data1 = parse_file("C:\\Users\\chmer\\Final_fused_Si_E.txt")
-data2 = parse_file("C:\\Users\\chmer\\Final_DyIg_60k_Fused_Si.txt")
-
-keys_data1 = list(data1.keys())
-values_data1 = list(data1.values())
-
-keys_data2 = list(data2.keys())
-values_data2 = list(data2.values())
-
-plt.figure()
-
-# Plotting data from the first file
-plt.plot(keys_data1, values_data1, label='Total Signal', color='blue')
-
-# Plotting data from the second file
-plt.plot(keys_data2, values_data2, label='Substrate', color='green')
-
-# Plotting the subtraction values
-plt.plot(keys, values, label='Subtraction', color='magenta')
-
-plt.xlabel("q(A^-1)")
-plt.ylabel("Intensity")
-plt.legend()
-plt.show()
+                
+def make_substrate_dict(substrate_filepath):
+    """A function to make a dictionary of the substrate by taking in the filepath of the substrate"""
+    substrate_dict = parse_file(substrate_filepath)
+    return substrate_dict
+                
+def plot_data(result_dict, substrate_dict):
+    """A function to plot the data by taking in the output of subtract_and_store"""
+    # Separate coordinates into lists
+    keys = list(result_dict.keys())
+    values = list(result_dict.values())
+    keys_data1 = list(substrate_dict.keys())
+    values_data1 = list(substrate_dict.values())
+    # Plotting data from the first file
+    plt.figure()
+    # Plotting data from the first file
+    plt.plot(keys_data1, values_data1, label='Total Signal', color='blue')
+    # Plotting data from the second file
+    plt.plot(keys, values, label='Subtraction', color='magenta')
+    plt.xlabel("q(A^-1)")
+    plt.ylabel("Intensity")
+    plt.legend()
+    plt.show()                
