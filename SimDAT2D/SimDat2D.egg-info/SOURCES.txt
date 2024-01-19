@@ -1,9 +1,0 @@
-README.md
-setup.py
-SimDat2D/SimDAT2D.py
-SimDat2D/__init__.py
-SimDat2D.egg-info/PKG-INFO
-SimDat2D.egg-info/SOURCES.txt
-SimDat2D.egg-info/dependency_links.txt
-SimDat2D.egg-info/requires.txt
-SimDat2D.egg-info/top_level.txt

@@ -1,8 +1,8 @@
 Metadata-Version: 2.1
-Name: SimDat2D
+Name: SimDAT2D
 Version: 0.1.0
 Summary: To create simulated 2D images of calibrant materials on single crystal substrates and integrate them with multiple integration patterns
-Home-page: https://github.com/dnalverson/thinfilm-toy-data-tool/
+Home-page: https://github.com/dnalverson/SimDAT2D/
 Author: Danielle N. Alverson
 Author-email: dalverson@ufl.edu
 Requires-Dist: matplotlib
