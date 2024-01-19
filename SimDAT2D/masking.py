@@ -97,13 +97,13 @@ def generate_mask_slices(array, width, num_slices, offset = 5):
     mask_list = []
     
     # Create masks for the positive values
-    for i in range(num_masks):
+    for i in range(num_slices):
         start = i * (width + offset)
         end = start + width
         mask_list.append(ma.masked_inside(array, start, end))
 
     # Create masks for the negative values
-    for i in range(num_masks):
+    for i in range(num_slices):
         start = - (i + 1) * (width + offset)
         end = start - width
         mask_list.append(ma.masked_inside(array, start, end))
