@@ -192,7 +192,7 @@ def create_mask(combined_image, width):
     return mask
 
 #Create a function that takes the combined image and integrates it using the azimuthal integrator and displays the 1D image
-def integrate_image(combined_image, distance, wavelength, resolution = 3000, mask = None, show = False):
+def integrate_image(combined_image, distance, wavelength, resolution = 3000, mask = None, show = False, radial_range = None):
     """
     This function integrates the combined image using the azimuthal integrator and displays the 1D image.
     
@@ -211,7 +211,7 @@ def integrate_image(combined_image, distance, wavelength, resolution = 3000, mas
     ai = AzimuthalIntegrator(dist=distance, poni1=poni1, poni2=poni2, detector=dete, wavelength=wavelength)
     
     #integrate the combined image using the azimuthal integrator
-    q, I = ai.integrate1d(combined_image, resolution, unit = 'q_A^-1', mask = mask)
+    q, I = ai.integrate1d(combined_image, resolution, radial_range = radial_range, unit = 'q_A^-1', mask = mask)
     
     if show == True:
         #plot the 1D image
