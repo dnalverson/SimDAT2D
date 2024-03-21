@@ -15,6 +15,42 @@ import pyFAI.detectors
 from pyFAI.azimuthalIntegrator import AzimuthalIntegrator
 from PIL import Image
 
+
+def create_iso_no_input(distance, wavelength, cmap, calib = 22):
+    ''' This function creates a calibration image for a given calibrant, distance, and wavelength. 
+    The user does not have to input the calibrant, it is already specified in the function. '''
+    
+    calibrants = [ "AgBh", "Al", "alpha_Al2O3", "Au", "C14H30O", "CeO2", "Cr2O3",
+                  "cristobaltite", "CrOx", "CuO", "hydrocerussite", "LaB6", "LaB6_SRM660a",
+                  "LaB6_SRM660b", "LaB6_SRM660c", "mock", "NaCl", "Ni", "PBBA",
+                  "Pt", "quartz", "Si", "Si_SRM640", "Si_SRM640a", "Si_SRM640b",
+                  "Si_SRM640c", "Si_SRM640d", "Si_SRM640e", "TiO2", "ZnO" 
+                  ]
+    calibrant = calibrants[calib]
+    cal = pyFAI.calibrant.ALL_CALIBRANTS(calibrant)
+    
+      # Initialize the detector
+    dete = pyFAI.detectors.Perkin()
+    p1, p2, p3 = dete.calc_cartesian_positions()
+    poni1 = p1.mean()
+    poni2 = p2.mean()
+
+    # Initialize the azimuthal integrator
+    ai_short = AzimuthalIntegrator(dist=distance, poni1=poni1, poni2=poni2, detector=dete, wavelength=wavelength)
+
+    # Generate the calibration image
+    img = cal.fake_calibration_image(ai_short)
+
+    # Plot the calibration image
+    plt.figure(figsize=(10, 10))
+    plt.imshow(img, cmap=cmap)
+    plt.title(calibrant)
+    plt.show()
+    
+    return img
+
+
+
 def create_isotropic(distance, wavelength, cmap):
     """
     This function plots a calibration image for a given calibrant, distance, and wavelength.
