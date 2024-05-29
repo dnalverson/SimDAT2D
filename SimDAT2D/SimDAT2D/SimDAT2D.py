@@ -182,7 +182,7 @@ def combine_image(spot_image, calibration_image, cmap='viridis'):
 #Generate a noise map to overlay on top of the combined image, the noise map should be the same size as the combined image and are random values between 0 and 1 scalars that are multiplied by the combined image
 #the user can specify how much impact the noise map has on the combined image by specifying the intensity of the noise map
 
-def generate_noisemap(combined_image, intensity, cmap = 'viridis'):
+def generate_noisemap(combined_image, intensity = 'med', cmap = 'viridis'):
     """
     This function generates a noise map to overlay on top of the combined image, the noise map should be the same size as the combined image and are random values between 0 and 1 scalars that are multiplied by the combined image.
     
@@ -190,20 +190,32 @@ def generate_noisemap(combined_image, intensity, cmap = 'viridis'):
         combined_image (2D array): The image of the combined spots and calibration.
         intensity (float): The intensity of the noise map.
     """
+    
+    if intensity == 'low':
+        intensity = 2
+    elif intensity == 'med':
+        intensity = 5
+    elif intensity == 'high':
+        intensity = 7.5
+
     #generate a noise map to overlay on top of the combined image, the noise map should be the same size as the combined image and are random values between 0 and 1 scalars that are multiplied by the combined image
     #the user can specify how much impact the noise map has on the combined image by specifying the intensity of the noise map
-    noise_map = np.random.rand(2048,2048) * intensity
-    
-    #add the noise map to the combined image
-    combined_image_with_noise = combined_image + noise_map
+    # Generate a normalized noise map
+    noise_map = np.random.normal(loc=2, scale=intensity, size=(2048, 2048))
+
+    # Normalize the noise map
+    #normalized_noise_map = (noise_map - np.min(noise_map)) / (np.max(noise_map) - np.min(noise_map))
+
+    # Multiply the normalized noise map with your image
+    result = noise_map * combined_image
     
     #display the combined image with the noise map
     plt.figure(figsize=(10, 10))
-    plt.imshow(combined_image_with_noise, cmap=cmap)
+    plt.imshow(result, cmap=cmap)
     plt.title("Combined Image with Noise Map")
     plt.show()
     
-    return combined_image_with_noise
+    return result
 
 def create_mask(combined_image, width):
     """
@@ -213,6 +225,7 @@ def create_mask(combined_image, width):
         combined_image (2D array): The image of the combined spots and calibration.
         width (int): The width of the line of interest.
     """
+    
     #create a mask for the azimuthal integrator to mask everything but an area of interest.
     #this area of interest is a line of user specified width that starts at the center of the image and extends to the edge of the image
     #the mask starts at the center and only goes positive in the y direction
