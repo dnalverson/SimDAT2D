@@ -2,7 +2,6 @@
 
 A 2D X-ray pattern generator using PyFAI to simulate thin film data deposited onto single crystal substrates.
 
-
 ![Alt text](SimDAT2D/sim.png)
 
 ## Table of Contents
@@ -42,6 +41,9 @@ pip install -e .
 import SimDAT2D as sd
 
 ```
+
+Please see the [tutorial notebook](Tutorial.ipynb) for more information.
+
 ## License
 
 This project is licensed under the [BSD 3-Clause License](https://spdx.org/licenses/BSD-3-Clause-Clear.html) - see the [LICENSE](LICENSE.md) file for details.
