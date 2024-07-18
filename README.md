@@ -2,7 +2,10 @@
 
 A 2D X-ray pattern generator using PyFAI to simulate thin film data deposited onto single crystal substrates.
 
-(SimDAT2D/sim.png)
+```markdown
+![Alt text](SimDAT2D/sim.png)
+```
+
 
 ## Table of Contents
 
