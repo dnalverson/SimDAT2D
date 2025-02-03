@@ -292,11 +292,11 @@ def integrate_image(combined_image, distance, wavelength, resolution = 3000, mas
         poni1 = p1.mean()
         poni2 = p2.mean()
     
-        ai = AzimuthalIntegrator(dist=distance, poni1=poni1, poni2=poni2, detector=dete, wavelength=wavelength)
+        ai = AI.AzimuthalIntegrator(dist=distance, poni1=poni1, poni2=poni2, detector=dete, wavelength=wavelength)
         
     else:
         distance, wavelength, rot1, rot2, rot3, poni1, poni2 = read_poni_file(poni)
-        ai = AzimuthalIntegrator(dist=distance, poni1=poni1, poni2=poni2, rot1=rot1, rot2=rot2, rot3=rot3, detector=dete, wavelength=wavelength)
+        ai = AI.AzimuthalIntegrator(dist=distance, poni1=poni1, poni2=poni2, rot1=rot1, rot2=rot2, rot3=rot3, detector=dete, wavelength=wavelength)
     
     #integrate the combined image using the azimuthal integrator
     q, I = ai.integrate1d(combined_image, resolution, radial_range = radial_range, unit = 'q_A^-1', mask = mask)
