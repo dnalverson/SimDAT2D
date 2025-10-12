@@ -273,6 +273,32 @@ def create_mask(combined_image, width):
     plt.show()
     return mask
 
+def create_label_mask_combined(image, label):
+    """
+    This function creates a label mask for an input image.
+    
+    Parameters:
+        image (2D array): The image for iso or aniso 
+        label (str): The label to apply to the image (iso, aniso, material, etc.).
+    """
+    # 1) make a boolean mask of *all* pixels
+    mask = np.ones(image.shape, dtype=bool)
+
+    # 2) build a parallel array of empty strings
+    labels = np.full(image.shape, "", dtype=object)
+
+    # 3) apply the label wherever mask is True
+    labels[mask] = label
+
+    # 4) optional summary
+    unique, counts = np.unique(labels, return_counts=True)
+    print("Label distribution:", dict(zip(unique, counts)))
+
+    img = plt.imshow(image, cmap='magma')
+    plt.show()
+
+    return img, labels
+
 def fill_nan_with_neighbor_mean_circle(image, radius=None, center=None):
     """
     Fill NaN values with the mean of neighboring non-NaN pixels, but only within
@@ -589,12 +615,23 @@ def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength
     plt.show()        
     return q, df
 
-def rotate_and_integrate_printout(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None, center = None, vis_interval = 45):
+def rotate_and_integrate_printout(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None, center = None, vis_interval = 45, source_label = None):
     """
     This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, 
     and rotates the combined image by a user specified angle amount, if the angle specified is 1, 
     the result will be 360 integrations of the combined image with different mask orientations.
     
+    Parameters:
+        combined_image (2D array): The image of the combined spots and calibration.
+        angle_of_rotation (int): The angle of rotation.
+        distance (float): The distance from the detector to the sample.
+        wavelength (float): The wavelength of the x-rays.
+        resolution (int): The resolution of the integration.
+        mask (2D array): The mask to use for the integration.
+        center (tuple): The center coordinates of the image.
+        vis_interval (int): How often to show visualizations.
+        source_label (str or list): Label for each column. Can be "isotropic", "anisotropic", "composite", or None.
+                                  If None, will use angle labels. If a list, should match number of angles.
     """
     import pandas as pd 
     
@@ -607,7 +644,19 @@ def rotate_and_integrate_printout(combined_image, angle_of_rotation, distance, w
 
     # Pre-allocate lists to store data
     intensity_data = []
-    angle_labels = []
+    angle_labels = [f"{angle:.3f}" for angle in angles]
+    
+    # Handle source labels
+    if source_label is None:
+        source_labels = [None] * len(angles)
+    elif isinstance(source_label, str):
+        source_labels = [source_label] * len(angles)
+    elif isinstance(source_label, list):
+        if len(source_label) != len(angles):
+            raise ValueError("If source_label is a list, it must match the number of angles")
+        source_labels = source_label
+    else:
+        raise ValueError("source_label must be None, a string, or a list")
 
     if center is None:
         center_y, center_x = combined_image.shape[0] // 2, combined_image.shape[1] // 2
@@ -670,17 +719,23 @@ def rotate_and_integrate_printout(combined_image, angle_of_rotation, distance, w
         # Add the 1D integration to the dataframe
         # Store data
         intensity_data.append(I)
-        angle_labels.append(f"{angle:.3f}")
         
-    # Create DataFrame all at once
-    df = pd.DataFrame(np.array(intensity_data).T, columns=angle_labels)
+    # Create DataFrame with source labels and angle labels as separate rows
+    df = pd.DataFrame(np.array(intensity_data).T)
+    df.columns = pd.MultiIndex.from_arrays([source_labels, angle_labels])
     
     #create a waterfall plot of the 1D integrations, where each dataset is moved up on the y axis by a multiple of .5
     plt.figure(figsize=(10, 10))
 
     for j in range(0, 180, angle_of_rotation):
         angle_str = f"{j:.3f}"  # Convert angle to string format matching the column labels
-        plt.plot(q, (df[angle_str] + j*.01), alpha = .55, c = 'black')
+        if source_label is None:
+            col_label = (None, angle_str)
+        elif isinstance(source_label, str):
+            col_label = (source_label, angle_str)
+        else:
+            col_label = (source_labels[j//angle_of_rotation], angle_str)
+        plt.plot(q, (df[col_label] + j*.01), alpha = .55, c = 'black')
     plt.xlabel('q A $^(-1)$')
     plt.ylabel('Intensity')
     plt.title("Waterfall Plot of Rotated 1D X-Ray Diffraction Images")
