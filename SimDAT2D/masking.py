@@ -4,7 +4,7 @@ import numpy.ma as ma
 import numpy.random as rnd
 import matplotlib.pyplot as plt
 import pyFAI
-import pyFAI.integrator.azimuthal as AI
+import pyFAI.azimuthalIntegrator as AI
 import pandas as pd
 import dask
 from dask import delayed
