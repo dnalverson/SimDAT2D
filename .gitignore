@@ -1,0 +1,15 @@
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Build / install artifacts
+*.egg-info/
+dist/
+build/
+
+# IDE settings
+.idea/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
