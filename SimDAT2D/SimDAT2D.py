@@ -1,4 +1,5 @@
-# Copyright (c) 2025, Danielle N. Alverson
+# Copyright (c) 2023, Danielle N. Alverson
+# Copyright (c) 2025, Marisa D. Kelley
 # All rights reserved.
 #
 # This software is licensed under the BSD 3-Clause License.
@@ -16,7 +17,7 @@ from PIL import Image
 import numpy as np
 import numpy.ma as ma
 import numpy.random as rnd
-import pyFAI.integrator.azimuthal as AI
+import pyFAI.azimuthalIntegrator as AI
 import pandas as pd
 import dask
 from dask import delayed
@@ -49,7 +50,7 @@ def create_iso_no_input(distance, wavelength, cmap, calib = 22):
     img = cal.fake_calibration_image(ai_short)
 
     # Plot the calibration image
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(6, 6))
     plt.imshow(img, cmap=cmap)
     plt.title(calibrant)
     plt.show()
@@ -98,7 +99,7 @@ def create_isotropic(distance, wavelength, cmap):
     img = cal.fake_calibration_image(ai_short)
 
     # Plot the calibration image
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(6, 6))
     plt.imshow(img, cmap=cmap)
     plt.title(calibrant)
     plt.show()
@@ -134,7 +135,7 @@ def create_anisotropic(nspots, width, offset, size=4, shape = 'square', cmap = '
                             detector_image[x+k][y+l] = np.exp(-((k-size/2)**2 + (l-size/2)**2) / (2 * width**2))
                     
     # display the image
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(6, 6))
     plt.imshow(detector_image, cmap=cmap)
     plt.title("2D X-Ray Diffraction Image")
     plt.show()
@@ -157,7 +158,7 @@ def rotate_image(image, angle, cmap = 'viridis'):
     
     
     #display the rotated image
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(6, 6))
     plt.imshow(rotated_image, cmap=cmap)
     plt.title("Rotated Image")
     plt.show()
@@ -179,7 +180,7 @@ def combine_image(spot_image, calibration_image, cmap='viridis'):
     combined_image = spot_image + calibration_image
     
     #display the combined image
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(6, 6))
     plt.imshow(combined_image, cmap=cmap)
     plt.title("Combined Image")
     plt.show()
@@ -217,12 +218,39 @@ def generate_noisemap(combined_image, intensity = 'med', cmap = 'viridis'):
     result = noise_map * combined_image
     
     #display the combined image with the noise map
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(6, 6))
     plt.imshow(result, cmap=cmap)
     plt.title("Combined Image with Noise Map")
     plt.show()
     
     return result
+
+def create_mask_for_tiff(tiff_path, width):
+    """
+    This function creates a mask for the azimuthal integrator from a TIFF file.
+    
+    Parameters:
+        tiff_path (str): Path to the TIFF file
+        width (int): The width of the line of interest
+    """
+    # Import tiff file
+    from tifffile import imread
+    image = imread(tiff_path)
+    
+    # Get the center point (assuming square image)
+    center = image.shape[0] // 2
+    
+    # Create the mask
+    mask = np.ones_like(image)
+    mask[center-width:center+width, center:] = 0
+    
+    # Display the mask
+    plt.figure(figsize=(5, 5))
+    plt.imshow(mask, cmap='viridis')
+    plt.title("Mask")
+    plt.show()
+    
+    return mask
 
 def create_mask(combined_image, width):
     """
@@ -240,12 +268,203 @@ def create_mask(combined_image, width):
     mask[1024-width:1024+width, 1024:] = 0
     
     #display the mask
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(6, 6))
     plt.imshow(mask, cmap='viridis')
     plt.title("Mask")
     plt.show()
-    
     return mask
+
+def fill_nan_with_neighbor_mean_circle(image, radius=None, center=None):
+    """
+    Fill NaN values with the mean of neighboring non-NaN pixels, but only within
+    a circular region defined by radius and center
+    
+    Parameters:
+    image: 2D numpy array
+    radius: radius of circle (default: min(height,width)/2)
+    center: (y,x) coordinates of circle center (default: image center)
+    """
+    # Create a copy of the image
+    filled_image = np.copy(image)
+    
+    # Set defaults if not provided
+    if center is None:
+        center = (image.shape[0]//2, image.shape[1]//2)  # (y, x)
+    if radius is None:
+        radius = min(image.shape[0], image.shape[1])//2
+        
+    # Create a circular mask
+    y, x = np.ogrid[:image.shape[0], :image.shape[1]]
+    dist_from_center = np.sqrt((y - center[0])**2 + (x - center[1])**2)
+    circle_mask = dist_from_center <= radius
+    
+    # Find NaN pixels
+    nan_y, nan_x = np.where(np.isnan(filled_image))
+    
+    # Loop through each NaN pixel
+    for y, x in zip(nan_y, nan_x):
+        # Check if this pixel is within the circle
+        if circle_mask[y, x]:
+            # Define a window around the NaN pixel (5x5 window)
+            y_start = max(0, y - 2)
+            y_end = min(image.shape[0], y + 3)
+            x_start = max(0, x - 2)
+            x_end = min(image.shape[1], x + 3)
+            
+            # Extract the window
+            window = filled_image[y_start:y_end, x_start:x_end]
+            
+            # Calculate mean of non-NaN values in the window
+            mean_value = np.nanmean(window)
+            
+            # Replace NaN with the calculated mean
+            filled_image[y, x] = mean_value
+            
+    # Set all pixels outside circle to NaN
+    filled_image[~circle_mask] = np.nan
+    
+    return filled_image
+
+def mask_circle_nan_edge(image, radius=None, center=None):
+    """
+    Fill NaN values with the mean of neighboring non-NaN pixels, but only within
+    a circular region defined by radius and center
+    
+    Parameters:
+    image: 2D numpy array
+    radius: radius of circle (default: min(height,width)/2)
+    center: (y,x) coordinates of circle center (default: image center)
+    """
+    # Create a copy of the image
+    circle_image = np.copy(image)
+    
+    # Set defaults if not provided
+    if center is None:
+        center = (image.shape[0]//2, image.shape[1]//2)  # (y, x)
+    if radius is None:
+        radius = min(image.shape[0], image.shape[1])//2
+        
+    # Create a circular mask
+    y, x = np.ogrid[:image.shape[0], :image.shape[1]]
+    dist_from_center = np.sqrt((y - center[0])**2 + (x - center[1])**2)
+    circle_mask = dist_from_center <= radius 
+    # Set all pixels outside circle to NaN
+    circle_image[~circle_mask] = np.nan
+    
+    return circle_image
+
+
+def center_shift_image(image, current_center, target_center=(1024,1024)):
+    """
+    Shift image to move current_center to target_center
+    
+    Parameters:
+        image: 2D numpy array of the image data
+        current_center: tuple (x,y) of current beam center
+        target_center: tuple (x,y) of desired center (default: (1024,1024))
+
+    Returns:
+        shifted_image: 2D numpy array of shifted image
+        shift_applied: tuple (dx,dy) of the applied shift
+    """
+    # First, let's check and clean the input image
+    cleaned_image = np.copy(image)
+    
+    # Replace NaN values with 0 or the mean of non-NaN values
+    if np.any(np.isnan(cleaned_image)):
+        print("Found NaN values in original image, replacing with 0")
+        cleaned_image = np.nan_to_num(cleaned_image, nan=0.0)
+
+    # Calculate required shift
+    dx = target_center[0] - current_center[0]
+    dy = target_center[1] - current_center[1]
+    
+    # Print diagnostic information about cleaned image
+    print("Cleaned image:")
+    print(f"Shape: {cleaned_image.shape}")
+    print(f"Min value: {np.min(cleaned_image)}")
+    print(f"Max value: {np.max(cleaned_image)}")
+    print(f"Number of non-zero pixels: {np.count_nonzero(cleaned_image)}")
+    
+    from scipy.ndimage import shift
+    # Shift with cleaned image
+    shifted_image = shift(cleaned_image, (dy, dx), mode='reflect', order=1)
+    
+    # Print diagnostic information about shifted image
+    print("\nShifted image:")
+    print(f"Shape: {shifted_image.shape}")
+    print(f"Min value: {np.min(shifted_image)}")
+    print(f"Max value: {np.max(shifted_image)}")
+    print(f"Number of non-zero pixels: {np.count_nonzero(shifted_image)}")
+    
+    # Create visualization
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 7))
+    
+    # Original image
+    im1 = ax1.imshow(cleaned_image, cmap='magma')
+    ax1.plot(current_center[0], current_center[1], 'b+', markersize=15, label='Original Center')
+    ax1.axhline(y=current_center[1], color='b', linestyle='--', alpha=0.3)
+    ax1.axvline(x=current_center[0], color='b', linestyle='--', alpha=0.3)
+    ax1.set_title('Original Image')
+    ax1.legend()
+    #plt.colorbar(im1, ax=ax1)
+    
+    # Shifted image
+    im2 = ax2.imshow(shifted_image, cmap='magma')
+    ax2.plot(target_center[0], target_center[1], 'g+', markersize=15, label='New Center')
+    ax2.axhline(y=target_center[1], color='g', linestyle='--', alpha=0.3)
+    ax2.axvline(x=target_center[0], color='g', linestyle='--', alpha=0.3)
+    ax2.set_title(f'Shifted Image\nShift applied: ({dx:.1f}, {dy:.1f}) pixels')
+    ax2.legend()
+    #plt.colorbar(im2, ax=ax2)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    print(f"Shift applied: dx={dx:.1f}, dy={dy:.1f} pixels")
+    
+    return shifted_image, (dx, dy)
+
+def apply_polarization(image, distance, center=None, polarization_factor=0.99):
+    """
+    Apply polarization correction to 2D diffraction image.
+    
+    Parameters:
+        image (2D array): Raw diffraction image
+        distance (float): Sample-to-detector distance in meters
+        center (tuple): (x,y) beam center coordinates. If None, assumes center of image
+        polarization_factor (float): Polarization factor, typically 0.99 for synchrotron
+        
+    Returns:
+        2D array: Polarization-corrected image
+    """
+    # Get image dimensions and center if not provided
+    ny, nx = image.shape
+    if center is None:
+        center = (nx//2, ny//2)
+    # Create coordinate grid relative to beam center
+    y, x = np.ogrid[:ny, :nx]
+    y = y - center[1]
+    x = x - center[0]
+    
+    # polar coordinates
+    r = np.sqrt(x*x + y*y)
+    phi = np.arctan2(y, x)
+    
+    # Calculate 2theta angle for each pixel
+    pixel_size = 0.0002  #from poni file
+    r_meters = r * pixel_size
+    twotheta = np.arctan2(r_meters, distance)
+    # Calculate polarization correction
+    # For synchrotron radiation (horizontal polarization):
+    P = (1 - polarization_factor * np.cos(phi)**2 * np.cos(twotheta)**2) / \
+        (1 + np.cos(twotheta)**2)
+    # Apply polarization correction
+    corrected = image / P
+    # Replace any invalid values with NaN
+    corrected[~np.isfinite(corrected)] = np.nan
+    
+    return corrected
 
 def read_poni_file(poni_file):
     """
@@ -310,7 +529,7 @@ def integrate_image(combined_image, distance, wavelength, resolution = 3000, mas
     
     return q, I
 
-def mask_rotation(mask, angle, show = False):
+def mask_rotation(mask, angle, show = False, poni = None):
     """
     This function rotates the create mask by a user specified angle amount, if the angle specified is 1, the result is that the mask is rotated by one degree.
     
@@ -318,39 +537,58 @@ def mask_rotation(mask, angle, show = False):
         mask (2D array): The mask to use for the integration.
         angle_of_rotation (int): The angle of rotation.
         """
-    rotated_mask = ndimage.rotate(mask, angle, reshape = False, mode = 'mirror')
+    rotated_mask = ndimage.rotate(mask, angle, reshape = False, mode = 'constant', cval = 1.0, order = 0)
+    # fix ndrotate half pixel integration vs pil_format (takes center 1023.5, 1023.5)
         
     
     if show == True:
         #display the rotated mask
         plt.figure(figsize=(10, 10))
-        plt.imshow(rotated_mask, cmap='viridis')
+        plt.imshow(rotated_mask, cmap='magma')
         plt.title("Rotated Mask")
         plt.show()
     
     return rotated_mask
 
-def image_rotation(image, angle, show = False):
+def image_rotation(image, angle, show = False, poni = None):
     """
-    This function rotates the combined image by a user specified angle amount, if the angle specified is 1, the result is that the combined image is rotated by one degree.
-    
+    This function rotates the combined image by a user specified angle amount, if the angle specified is 1, the result is that the combined image is rotated by one degree
     Parameters:
         image (2D array): The image of the combined spots and calibration.
         angle_of_rotation (int): The angle of rotation.
         """
+
+     #initialize the detector
+    dete = pyFAI.detectors.Perkin()
+
+    if poni is None:
+    # synthetic/no-poni: beam center is the array center
+        p1, p2, p3 = dete.calc_cartesian_positions()
+        beam_col = p2.mean() / dete.pixel2    # converts meters → pixel
+        beam_row = p1.mean() / dete.pixel1
+    else:
+        # experimental: read actual beam center from poni
+        _, _, _, _, _, poni1, poni2 = read_poni_file(poni)
+        distance, wavelength, rot1, rot2, rot3, poni1, poni2 = read_poni_file(poni)
+        ai = AI.AzimuthalIntegrator(dist=distance, poni1=poni1, poni2=poni2, rot1=rot1, rot2=rot2, rot3=rot3, detector=dete, wavelength=wavelength)
+        fit2d = ai.getFit2D()
+        beam_row = fit2d['centerY']   # 0-indexed, row from top
+        beam_col = fit2d['centerX']   # 0-indexed, col from left
+
+    
     pil_format = Image.fromarray(image)
-    rotated_image = pil_format.rotate(angle)
+    rotated_image = pil_format.rotate(angle, center =(beam_col, beam_row))
     rotated_image = np.array(rotated_image)
     
     if show == True:
         #display the rotated image
         plt.figure(figsize=(10, 10))
-        plt.imshow(rotated_image, cmap='viridis')
+        plt.imshow(rotated_image, cmap='magma')
         plt.title("Rotated Image")
         plt.show()
     return rotated_image
 
-def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, radial_range = None, mask = None):
+def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None, poni = None):
     """
     This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, and rotates the combined image by a user specified angle amount, if the angle specified is 1, the result will be 360 integrations of the combined image, each integration will be rotated by 1 degree.
     
@@ -367,28 +605,432 @@ def rotate_and_integrate(combined_image, angle_of_rotation, distance, wavelength
     
     #create a dataframe to store the 1D integrations
     df = pd.DataFrame()
+
+    # Calculate number of steps for degrees
+    n_steps = int(360 / angle_of_rotation)
+    angles = np.linspace(0, 360, n_steps, endpoint=False)
+
+    # Pre-allocate lists to store data
+    intensity_data = []
+    angle_labels = []
     
-    #create a loop that rotates the combined image by the user specified angle amount and integrates the image
-    for i in range(0, 360, angle_of_rotation):
-        #rotate the mask for the combined image
-        rotated_image = image_rotation(combined_image, i);
-    
+    # Create a loop that rotates the combined image
+    for i, angle in enumerate(angles):
+        #rotate the combined image
+        rotated_image = image_rotation(combined_image, angle, poni = poni);
         
         #integrate the rotated image
-        q, I = integrate_image(rotated_image, distance, wavelength, resolution, mask, radial_range = radial_range, show = False);
+        q, I = integrate_image(rotated_image, distance, wavelength, resolution, mask, show = False, poni = poni);
         
-        #add the 1D integration to the dataframe
-        df[i] = I
+        # Add the 1D integration to the dataframe
+        # Store data
+        intensity_data.append(I)
+        angle_labels.append(f"{angle:.3f}")
         
-        #create a waterfall plot of the 1D integrations, where each dataset is moved up on the y axis by a multiple of .5
+    # Create DataFrame all at once
+    df = pd.DataFrame(np.array(intensity_data).T, columns=angle_labels)
+    
+    #create a waterfall plot of the 1D integrations, where each dataset is moved up on the y axis by a multiple of .5
     plt.figure(figsize=(10, 10))
-    for j in range(0, 360, angle_of_rotation):
-            plt.plot(q, (df[j]+ j*.01), alpha = .55, c = 'black')
+
+### waterfall plot offset is way too small --effectively and overlay **FIX**
+    for angle in angles:
+        plt.plot(q, (df[f"{angle:.3f}"]+ angle*.01), alpha = .55, c = 'black')
     plt.xlabel('q A $^(-1)$')
     plt.ylabel('Intensity')
     plt.title("Waterfall Plot of Rotated 1D X-Ray Diffraction Images")
     plt.show()        
     return q, df
+
+
+def rotate_and_integrate_GI(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None, poni = None):
+    """
+    This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, and rotates the combined image by a user specified angle amount, if the angle specified is 1, the result will be 360 integrations of the combined image, each integration will be rotated by 1 degree.
+    
+    Parameters:
+        combined_image (2D array): The image of the combined spots and calibration.
+        angle_of_rotation (int): The angle of rotation.
+        distance (float): The distance from the detector to the sample.
+        wavelength (float): The wavelength of the x-rays.
+        resolution (int): The resolution of the integration.
+        mask (2D array): The mask to use for the integration.
+    """
+    
+    import pandas as pd 
+    
+    #create a dataframe to store the 1D integrations
+    df = pd.DataFrame()
+
+    # Calculate number of steps for degrees
+    n_steps = int(180 / angle_of_rotation)
+    angles = np.linspace(0 + angle_of_rotation/2, 180 + angle_of_rotation/2, n_steps, endpoint=False)
+
+    # Pre-allocate lists to store data
+    intensity_data = []
+    angle_labels = []
+    
+    # Create a loop that rotates the combined image
+    for i, angle in enumerate(angles):
+        #rotate the combined image
+        rotated_image = image_rotation(combined_image, angle, poni = poni);
+        
+        #integrate the rotated image
+        q, I = integrate_image(rotated_image, distance, wavelength, resolution, mask, show = False, poni = poni);
+        
+        # Add the 1D integration to the dataframe
+        # Store data
+        intensity_data.append(I)
+        angle_labels.append(f"{angle:.3f}")
+        
+    # Create DataFrame all at once
+    df = pd.DataFrame(np.array(intensity_data).T, columns=angle_labels)
+    
+    #create a waterfall plot of the 1D integrations, where each dataset is moved up on the y axis by a multiple of .5
+    plt.figure(figsize=(10, 10))
+
+### waterfall plot offset is way too small --effectively and overlay **FIX**
+    for angle in angles:
+        plt.plot(q, (df[f"{angle:.3f}"]+ angle*.01), alpha = .55, c = 'black')
+    plt.xlabel('q A $^(-1)$')
+    plt.ylabel('Intensity')
+    plt.title("Waterfall Plot of Rotated 1D X-Ray Diffraction Images")
+    plt.show()        
+    return q, df
+
+
+def rotate_and_integrate_printout(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None, center = None, ShowPrintout = False):
+    """
+    This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, 
+    and rotates the combined image by a user specified angle amount, if the angle specified is 1, 
+    the result will be 360 integrations of the combined image with different mask orientations.
+    
+    """
+    import pandas as pd 
+    
+    #create a dataframe to store the 1D integrations
+    df = pd.DataFrame()
+
+    # Calculate number of steps for 180 degrees
+    n_steps = int(360 / angle_of_rotation)
+    angles = np.linspace(0, 360, n_steps, endpoint=False)
+
+    # Pre-allocate lists to store data
+    intensity_data = []
+    angle_labels = []
+
+    if center is None:
+        center_y, center_x = combined_image.shape[0] // 2, combined_image.shape[1] // 2
+    else:
+        center_y, center_x = center
+    
+    # Create a loop that rotates the combined image
+    for i, angle in enumerate(angles):
+        #rotate the mask for the combined image
+        rotated_image = image_rotation(combined_image, angle, poni = poni);
+
+        # Show intermediate visualizations at regular intervals
+        if ShowPrintout == True:
+            fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+            
+            # Plot the rotated image
+            im0 = axes[0].imshow(rotated_image, cmap='magma')  # <-- Show the rotated image instead
+            axes[0].set_title(f"Rotated Image (Angle: {angle:.1f}°)")
+            plt.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
+            
+            # Plot the rotated mask - with clearer representation
+            if mask is not None:
+                # Invert the mask for display (1 is masked, 0 is data for pyFAI)
+                display_mask = 1 - mask
+                im1 = axes[1].imshow(display_mask, cmap='gray')
+                axes[1].set_title(f"Mask")
+                plt.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
+            else:
+                axes[1].text(0.5, 0.5, "No Mask", ha='center', va='center')
+                axes[1].set_title("No Mask Provided")
+            
+            # Plot what will actually be integrated
+            if mask is not None:
+                # Create a masked array to show what will be integrated
+                # In pyFAI, pixels where mask=0 are integrated, mask=1 are ignored
+                masked_data = np.ma.masked_array(rotated_image, mask=mask)
+                
+                im2 = axes[2].imshow(masked_data, cmap='magma')
+                axes[2].set_title("Integration Path\n(Color = Used, Masked = Hidden)")
+                
+                # Add gridlines to help visualize
+                axes[2].grid(color='white', linestyle='-', linewidth=0.5, alpha=0.3)
+                
+                # Add center marker
+                axes[2].plot(center_x, center_y, 'rx', markersize=10)
+            else:
+                im2 = axes[2].imshow(rotated_image, cmap='magma')
+                axes[2].set_title("Full Image (No Mask)")
+                axes[2].plot(center_x, center_y, 'rx', markersize=10)
+            plt.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
+            
+            plt.tight_layout()
+            plt.suptitle(f"Visualization at Step {i+1}/{n_steps} (Angle: {angle:.1f}°)", fontsize=16)
+            plt.subplots_adjust(top=0.9)
+            plt.show()
+
+        #integrate the rotated image
+        q, I = integrate_image(rotated_image, distance, wavelength, resolution, mask, show = False);
+        
+        # Add the 1D integration to the dataframe
+        # Store data
+        intensity_data.append(I)
+        angle_labels.append(f"{angle:.3f}")
+        
+    # Create DataFrame all at once
+    df = pd.DataFrame(np.array(intensity_data).T, columns=angle_labels)
+    
+    #create a waterfall plot of the 1D integrations, where each dataset is moved up on the y axis by a multiple of .5
+    plt.figure(figsize=(10, 10))
+
+    for j in range(0, 180, angle_of_rotation):
+        angle_str = f"{j:.3f}"  # Convert angle to string format matching the column labels
+        plt.plot(q, (df[angle_str] + j*.01), alpha = .55, c = 'black')
+    plt.xlabel('q A $^(-1)$')
+    plt.ylabel('Intensity')
+    plt.title("Waterfall Plot of Rotated 1D X-Ray Diffraction Images")
+    plt.show()        
+    return q, df
+
+def rotate_and_integrate_mdk(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None):
+    """
+    This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, and rotates the combined image by a user specified angle amount, if the angle specified is 1, the result will be 360 integrations of the combined image, each integration will be rotated by 1 degree.
+
+    Parameters:
+    combined_image (2D array): The image of the combined spots and calibration.
+    angle_of_rotation (int): The angle of rotation.
+    distance (float): The distance from the detector to the sample
+    wavelength (float): The wavelength of the x-rays.
+    resolution (int): The resolution of the integration.
+    mask (2D array): The mask to use for the integration.
+    """
+
+    import pandas as pd
+
+    #create a dataframe to store the 1D integrations
+    df = pd.DataFrame()
+
+    # Calculate number of steps for 180 degrees
+    n_steps = int(360 / angle_of_rotation)
+    angles = np.linspace(0, 360, n_steps, endpoint=False)
+
+    # Pre-allocate lists to store data
+    intensity_data = []
+    angle_labels = []
+
+    # Create a loop that rotates the combined image
+    for i, angle in enumerate(angles):
+    #rotate the combined image
+        rotated_image = image_rotation(combined_image, i);
+
+        #integrate the rotated image
+        q, I = integrate_image(rotated_image, distance, wavelength, resolution, mask, show = False);
+
+        # Add the 1D integration to the dataframe
+        # Store data
+        intensity_data.append(I)
+        angle_labels.append(f"{angle:.3f}")
+
+    # Create DataFrame all at once
+    df = pd.DataFrame(np.array(intensity_data).T, columns=angle_labels)
+
+    #create a waterfall plot of the 1D integrations, where each dataset is moved up on the y axis by a multiple of .5
+    plt.figure(figsize=(10, 10))
+
+    for j in range(0, 360, angle_of_rotation):
+        plt.plot(q, (df[f"{j:.3f}"]+ j*.01), alpha = .55, c = 'black')
+    plt.xlabel('q A $^(-1)$')
+    plt.ylabel('Intensity')
+    plt.title("Waterfall Plot of Rotated 1D X-Ray Diffraction Images")
+    plt.show()
+    return q, df
+
+def rotate_and_integrate_mask(combined_image, angle_of_rotation, distance, wavelength, resolution = 3000, mask = None, poni = None):
+    """
+    This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, 
+    and rotates the mask by a user specified angle amount, if the angle specified is 1, 
+    the result will be 360 integrations of the combined image with different mask orientations.
+    
+    Parameters:
+        combined_image (2D array): The image of the combined spots and calibration.
+        angle_of_rotation (int): The angle of rotation.
+        distance (float): The distance from the detector to the sample.
+        wavelength (float): The wavelength of the x-rays.
+        resolution (int): The resolution of the integration.
+        mask (2D array): The mask to use for the integration.
+    """
+    
+    import pandas as pd 
+    
+    #create a dataframe to store the 1D integrations
+    df = pd.DataFrame()
+
+    # Calculate number of steps for 360 degrees
+    n_steps = int(360 / angle_of_rotation)
+    angles = np.linspace(0, 360, n_steps, endpoint=False)
+
+    # Pre-allocate lists to store data
+    intensity_data = []
+    angle_labels = []
+    
+    # Create a loop that rotates the mask
+    for i, angle in enumerate(angles):
+        #rotate the mask instead of the image
+        if mask is not None:
+            rotated_mask = mask_rotation(mask, angle, poni = poni);
+        else:
+            rotated_mask = None
+        
+        #integrate the image with the rotated mask
+        q, I = integrate_image(combined_image, distance, wavelength, resolution, rotated_mask, show=False, poni=poni)
+        
+        # Store data
+        intensity_data.append(I)
+        angle_labels.append(f"{angle:.3f}")
+        
+    # Create DataFrame all at once
+    df = pd.DataFrame(np.array(intensity_data).T, columns=angle_labels)
+    
+    #create a waterfall plot of the 1D integrations, where each dataset is moved up on the y axis by a multiple of .5
+    plt.figure(figsize=(10, 10))
+    for j in range(0, 360, angle_of_rotation):
+        plt.plot(q, (df[f"{float(j):.3f}"] + j*.01), alpha=.55, c='black')
+    plt.xlabel('q A $^(-1)$')
+    plt.ylabel('Intensity')
+    plt.title("Waterfall Plot of Mask Rotated 1D X-Ray Diffraction Images")
+    plt.show()     
+    return q, df
+
+def rotate_and_integrate_mask_printout(combined_image, angle_of_rotation, distance, wavelength, resolution=3000, mask=None, 
+                         intermediate_steps=18): 
+    """
+    This function takes the combined image, the mask, the distance, the wavelength, and the resolution of integration, 
+    and rotates the mask by a user specified angle amount, if the angle specified is 1, 
+    the result will be 360 integrations of the combined image with different mask orientations.
+    
+    Parameters:
+        combined_image (2D array): The image of the combined spots and calibration.
+        angle_of_rotation (int): The angle of rotation.
+        distance (float): The distance from the detector to the sample.
+        wavelength (float): The wavelength of the x-rays.
+        resolution (int): The resolution of the integration.
+        mask (2D array): The mask to use for the integration.
+        visualization_steps (int): How many intermediate visualizations to show (will plot every n steps)
+    """
+    
+    import pandas as pd 
+    
+    print(f"Starting rotate_and_integrate function")
+    
+    #create a dataframe to store the 1D integrations
+    df = pd.DataFrame()
+
+    # Calculate number of steps for 360 degrees
+    n_steps = int(180 / angle_of_rotation)
+    angles = np.linspace(180, 360, n_steps, endpoint=False)
+    
+    # Determine how often to show visualizations
+    visualization_interval = max(1, n_steps // intermediate_steps)
+    print(f"Will show visualizations every {visualization_interval} steps")
+
+    # Pre-allocate lists to store data
+    intensity_data = []
+    angle_labels = []
+
+    # Get image center
+    center_y, center_x = combined_image.shape[0] // 2, combined_image.shape[1] // 2
+
+    # Create a loop that rotates the mask
+    for i, angle in enumerate(angles):
+        print(f"\nProcessing angle {i+1}/{n_steps}: {angle:.3f} degrees")
+        
+        # Rotate the mask instead of the image
+        if mask is not None:
+            rotated_mask = image_rotation(mask, angle)
+                    # Make sure mask is binary (0 or 1)
+            if rotated_mask.dtype != bool:
+                binary_mask = rotated_mask.astype(bool).astype(int)
+            else:
+                binary_mask = rotated_mask.astype(int)
+        else:
+            rotated_mask = None
+            binary_mask = None
+        
+        # Show intermediate visualizations at regular intervals
+        if i % visualization_interval == 0:
+            fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+            
+            # Plot the original image
+            im0 = axes[0].imshow(combined_image, cmap='magma')
+            axes[0].set_title(f"Original Image")
+            plt.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
+            
+            # Plot the rotated mask - with clearer representation
+            if binary_mask is not None:
+                # Invert the mask for display (1 is masked, 0 is data for pyFAI)
+                display_mask = 1 - binary_mask
+                im1 = axes[1].imshow(display_mask, cmap='gray')
+                axes[1].set_title(f"Rotated Mask (Angle: {angle:.1f}°)\nWhite = Used, Black = Masked")
+                plt.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
+            else:
+                axes[1].text(0.5, 0.5, "No Mask", ha='center', va='center')
+                axes[1].set_title("No Mask Provided")
+            
+            # Plot what will actually be integrated
+            if binary_mask is not None:
+                # Create a masked array to show what will be integrated
+                # In pyFAI, pixels where mask=0 are integrated, mask=1 are ignored
+                masked_data = np.ma.masked_array(combined_image, mask=binary_mask)
+                
+                im2 = axes[2].imshow(masked_data, cmap='magma')
+                axes[2].set_title("Integration Path\n(Color = Used, Masked = Hidden)")
+                
+                # Add gridlines to help visualize
+                axes[2].grid(color='white', linestyle='-', linewidth=0.5, alpha=0.3)
+                
+                # Add center marker
+                axes[2].plot(center_x, center_y, 'rx', markersize=10)
+            else:
+                im2 = axes[2].imshow(combined_image, cmap='magma')
+                axes[2].set_title("Full Image (No Mask)")
+                axes[2].plot(center_x, center_y, 'rx', markersize=10)
+            plt.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
+            
+            plt.tight_layout()
+            plt.suptitle(f"Visualization at Step {i+1}/{n_steps} (Angle: {angle:.1f}°)", fontsize=16)
+            plt.subplots_adjust(top=0.9)
+            plt.show()
+        
+        # Integrate the image with the rotated mask
+        q, I = integrate_image(combined_image, distance, wavelength, resolution, mask=rotated_mask, show=False)
+        
+        # Store data
+        intensity_data.append(I)
+        angle_labels.append(f"{angle:.3f}")
+        
+        # Print progress every 10% of steps
+        progress_interval = max(1, n_steps // 10)
+        if (i+1) % progress_interval == 0:
+            print(f"Completed {i+1}/{n_steps} integrations ({(i+1)/n_steps*100:.1f}%)")
+    
+    # Create DataFrame all at once
+    df = pd.DataFrame(np.array(intensity_data).T, columns=angle_labels)
+    
+    # Create a waterfall plot of the 1D integrations
+    plt.figure(figsize=(10, 10))
+    for angle in angles[1:len(angles)-1]:  # Skip first & last angles
+        plt.plot(q, (df[f"{angle:.3f}"]), c='black')
+    plt.xlabel('Original q (A$^{-1}$)')
+    plt.ylabel('Intensity')
+    plt.title("Overlay Plot")
+    plt.show()     
+    return q, df
+
+
 
     # Final Subtraction Program
 # Date Created: 11/2/2023
@@ -443,6 +1085,7 @@ def subtract_and_store(total_signalfile_path, substrate_filepath):
 
 def save_data(path, result_dict):
     """A function to save the data as a csv by taking in the output of subtract_and_store"""
+    min_val = 1000
     final_sub_path = path
     # Opens csv file to place values in
     with open(final_sub_path, mode = 'w', newline = '' ) as file:
